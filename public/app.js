@@ -1386,23 +1386,10 @@ async function handleFile(file) {
     // If all amounts were positive we can't auto-detect payments — treat all as charges
     if (!rows.some(r => !r.isPayment)) rows.forEach(r => { r.isPayment = false; r.isIncome = false; r.checked = true; });
 
-    // Auto-create categories that were detected but don't exist yet
-    if (rows.some(r => r.category === "Zelle to Friends") && !categories.some(c => c.name === "Zelle to Friends")) {
-      categories.push({ name: "Zelle to Friends", color: "#14b8a6", icon: "💸" });
-    }
-    if (rows.some(r => r.category === "Allowance") && !categories.some(c => c.name === "Allowance")) {
-      categories.push({ name: "Allowance", color: "#f59e0b", icon: "💵" });
-    }
-    if (rows.some(r => r.category === "Insurance") && !categories.some(c => c.name === "Insurance")) {
-      categories.push({ name: "Insurance", color: "#ef4444", icon: "🛡️" });
-    }
-    if (rows.some(r => r.category === "Technology") && !categories.some(c => c.name === "Technology")) {
-      categories.push({ name: "Technology", color: "#6366f1", icon: "📱" });
-    }
+    // Auto-create "Other" category if needed
     if (rows.some(r => r.category === "Other") && !categories.some(c => c.name === "Other")) {
       categories.push({ name: "Other", color: "#9ca3af", icon: "💰" });
     }
-    persist();
 
     parsedRows = rows;
 
@@ -1414,7 +1401,33 @@ async function handleFile(file) {
         : CHASE_MAP[cat.toLowerCase()] || "Other";
     });
 
-    // AI batch categorization for uncategorized transactions
+    // Run local pattern matching on anything still labeled "Other"
+    rows.forEach(function (r) {
+      if (r.category === 'Other') {
+        var guess = smartCategorize(r.description);
+        if (guess && guess !== 'Other') {
+          r.category = guess;
+          categoryMap[guess] = guess;
+        }
+      }
+    });
+
+    // Auto-create categories from pattern matching that don't exist yet
+    var patternCats = {
+      'Zelle to Friends': { color: '#14b8a6', icon: '💸' },
+      'Allowance':        { color: '#f59e0b', icon: '💵' },
+      'Insurance':        { color: '#ef4444', icon: '🛡️' },
+      'Technology':       { color: '#6366f1', icon: '📱' }
+    };
+    Object.keys(patternCats).forEach(function (name) {
+      if (rows.some(function (r) { return r.category === name; }) &&
+          !categories.some(function (c) { return c.name === name; })) {
+        categories.push({ name: name, color: patternCats[name].color, icon: patternCats[name].icon });
+      }
+    });
+    persist();
+
+    // AI batch categorization for remaining uncategorized transactions
     const uncategorized = rows.filter(r => r.category === 'Other');
 
     if (uncategorized.length > 0 && AI_ENABLED) {
