@@ -40,7 +40,7 @@ const SIMPLE_GROUPS = {
 };
 
 // ─── Persistence ─────────────────────────────────────────────────
-var CACHE_VERSION = 2; // bump this to force AI cache + categories reset
+var CACHE_VERSION = 3; // bump this to force AI cache + categories reset
 function load() {
   // Auto-clear stale AI cache and categories when version changes
   var storedVersion = parseInt(localStorage.getItem('et_cache_version') || '0');
@@ -216,7 +216,7 @@ function getCacheKey(description) {
 function lookupAICache(description) {
   const cache = loadAICache();
   const key = getCacheKey(description);
-  if (cache[key] && categories.some(c => c.name === cache[key].category)) {
+  if (cache[key] && cache[key].category) {
     return cache[key];
   }
   return null;
