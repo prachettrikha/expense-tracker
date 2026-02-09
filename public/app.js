@@ -1233,10 +1233,69 @@ function parseAmt(str) {
   return isNaN(n) ? null : n;
 }
 
-function toISODate(str) {
-  const [m, d, y] = (str || '').split('/');
+function toISODate(str, dateFormat) {
+  if (!str || !str.trim()) return null;
+  var s = str.trim();
+  var m, d, y;
+
+  // Default to MM/DD/YYYY if no format specified
+  var fmt = (dateFormat || 'MM/DD/YYYY').toUpperCase();
+
+  if (fmt === 'YYYY-MM-DD') {
+    var parts = s.split('-');
+    y = parts[0]; m = parts[1]; d = parts[2];
+  } else if (fmt === 'DD/MM/YYYY' || fmt === 'D/M/YYYY') {
+    var parts = s.split(/[/\-.]/);
+    d = parts[0]; m = parts[1]; y = parts[2];
+  } else if (fmt === 'DD-MM-YYYY') {
+    var parts = s.split('-');
+    d = parts[0]; m = parts[1]; y = parts[2];
+  } else if (fmt === 'MM-DD-YYYY') {
+    var parts = s.split('-');
+    m = parts[0]; d = parts[1]; y = parts[2];
+  } else {
+    // MM/DD/YYYY or M/D/YYYY (default)
+    var parts = s.split(/[/\-.]/);
+    m = parts[0]; d = parts[1]; y = parts[2];
+  }
+
   if (!m || !d || !y) return null;
-  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  // Handle 2-digit years
+  if (y.length === 2) y = '20' + y;
+  return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
+// Call AI to detect CSV column structure
+async function detectCSVFormat(sampleRows) {
+  try {
+    var response = await fetch('/api/parse-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: sampleRows })
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (err) {
+    console.warn('AI CSV detection failed, using fallback:', err);
+    return null;
+  }
+}
+
+// Fallback: detect columns from headers the old way
+function detectColumnsFromHeaders(headers) {
+  return {
+    columns: {
+      date:        headers.findIndex(function (h) { return h.includes("date"); }),
+      description: headers.findIndex(function (h) { return h.includes("description"); }),
+      category:    headers.findIndex(function (h) { return h === "category"; }),
+      amount:      headers.findIndex(function (h) { return h === "amount"; }),
+      debit:       headers.findIndex(function (h) { return h === "debit"; }),
+      credit:      headers.findIndex(function (h) { return h === "credit"; }),
+      type:        headers.findIndex(function (h) { return h === "type"; })
+    },
+    dateFormat: 'MM/DD/YYYY',
+    amountSign: 'negative_is_expense'
+  };
 }
 
 async function handleFile(file) {
@@ -1248,29 +1307,46 @@ async function handleFile(file) {
     const allRows = parseCSV(text, sep);
     if (allRows.length < 2) return alert("CSV appears empty.");
 
-    const headers = allRows[0].map(h => h.toLowerCase());
-    const col = {
-      date:    headers.findIndex(h => h.includes("date")),
-      desc:    headers.findIndex(h => h.includes("description")),
-      cat:     headers.findIndex(h => h === "category"),
-      amt:     headers.findIndex(h => h === "amount"),
-      debit:   headers.findIndex(h => h === "debit"),
-      credit:  headers.findIndex(h => h === "credit"),
-      type:    headers.findIndex(h => h === "type"),
-      details: headers.findIndex(h => h === "details"),
+    // Show loading while AI detects the format
+    showImportScreen('preview');
+    document.getElementById('previewList').innerHTML =
+      '<div class="ai-loading">' +
+      '<div class="ai-spinner"></div>' +
+      '<div class="ai-loading-text">Detecting CSV format...</div>' +
+      '</div>';
+
+    // Try AI detection first, fallback to header-based detection
+    var sampleRows = allRows.slice(0, 6);
+    var detected = await detectCSVFormat(sampleRows);
+    var headers = allRows[0].map(function (h) { return h.toLowerCase(); });
+
+    if (!detected || !detected.columns) {
+      detected = detectColumnsFromHeaders(headers);
+    }
+
+    var col = {
+      date:    detected.columns.date != null ? detected.columns.date : -1,
+      desc:    detected.columns.description != null ? detected.columns.description : -1,
+      cat:     detected.columns.category != null ? detected.columns.category : -1,
+      amt:     detected.columns.amount != null ? detected.columns.amount : -1,
+      debit:   detected.columns.debit != null ? detected.columns.debit : -1,
+      credit:  detected.columns.credit != null ? detected.columns.credit : -1,
+      type:    detected.columns.type != null ? detected.columns.type : -1,
     };
+    var dateFormat = detected.dateFormat || 'MM/DD/YYYY';
+    var amountSign = detected.amountSign || 'negative_is_expense';
 
     if (col.date === -1) return alert("Can't find a date column.\n\nDetected headers: " + headers.join(", "));
 
-    const isChecking = col.debit !== -1 && col.credit !== -1;
+    const isChecking = amountSign === 'separate_columns' && col.debit !== -1 && col.credit !== -1;
     const rows = [];
 
     for (let i = 1; i < allRows.length; i++) {
       const c    = allRows[i];
-      const date = toISODate((c[col.date] || '').trim());
+      const date = toISODate((c[col.date] || '').trim(), dateFormat);
       if (!date) continue;
 
-      const desc = (c[col.desc] || 'Unknown').trim();
+      const desc = col.desc !== -1 ? (c[col.desc] || 'Unknown').trim() : 'Unknown';
       const cat  = col.cat !== -1 ? (c[col.cat] || 'Other').trim() : smartCategorize(desc);
       let amount, isPayment;
 
@@ -1285,23 +1361,27 @@ async function handleFile(file) {
         const raw = parseAmt(c[col.amt]);
         if (raw === null) continue;
         amount = Math.abs(raw);
-        // Check both Type and Details columns for credit/debit direction
-        const typeVal    = col.type    !== -1 ? (c[col.type]    || '').trim().toLowerCase() : '';
-        const detailsVal = col.details !== -1 ? (c[col.details] || '').trim().toLowerCase() : '';
-        if (typeVal.includes("credit") || typeVal.includes("deposit") ||
-            detailsVal.includes("credit") || detailsVal.includes("deposit")) {
-          isPayment = true;
-        } else if (typeVal.includes("debit") || detailsVal.includes("debit")) {
-          isPayment = false;
+
+        if (amountSign === 'positive_is_expense') {
+          isPayment = raw < 0;
         } else {
-          isPayment = raw > 0; // fallback for credit card statements
+          // negative_is_expense (default): negative = expense, positive = income
+          // Also check type column if available
+          var typeVal = col.type !== -1 ? (c[col.type] || '').trim().toLowerCase() : '';
+          if (typeVal.includes("credit") || typeVal.includes("deposit")) {
+            isPayment = true;
+          } else if (typeVal.includes("debit")) {
+            isPayment = false;
+          } else {
+            isPayment = raw > 0;
+          }
         }
       }
 
       rows.push({ date, description: desc, amount, category: cat, isPayment, isIncome: isPayment, checked: true });
     }
 
-    if (!rows.length) return alert("No transactions found — make sure this is a Chase CSV.");
+    if (!rows.length) return alert("No transactions found in this CSV.");
 
     // If all amounts were positive we can't auto-detect payments — treat all as charges
     if (!rows.some(r => !r.isPayment)) rows.forEach(r => { r.isPayment = false; r.isIncome = false; r.checked = true; });
@@ -1377,7 +1457,7 @@ function renderCatMap() {
   const opts = categories.map(c => `<option value="${escHtml(c.name)}">${c.icon} ${escHtml(c.name)}</option>`).join("");
 
   document.getElementById("mapSection").innerHTML =
-    `<div class="map-title">Map Chase categories to yours</div>` +
+    '<div class="map-title">Map categories to yours</div>' +
     uniqueCats.map(cat =>
       `<div class="map-row">
          <span class="chase-cat">${escHtml(cat)}</span>
