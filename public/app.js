@@ -1418,31 +1418,50 @@ async function handleFile(file) {
     const uncategorized = rows.filter(r => r.category === 'Other');
 
     if (uncategorized.length > 0 && AI_ENABLED) {
-      showImportScreen('preview');
-      document.getElementById('previewList').innerHTML =
-        '<div class="ai-loading">' +
-        '<div class="ai-spinner"></div>' +
-        '<div class="ai-loading-text">AI is categorizing ' + uncategorized.length + ' transaction' + (uncategorized.length > 1 ? 's' : '') + '...</div>' +
-        '</div>';
+      // Deduplicate: extract unique descriptions that aren't already cached
+      var seen = {};
+      var uniqueDescs = [];
+      uncategorized.forEach(function (r) {
+        var key = getCacheKey(r.description);
+        if (!seen[key] && !lookupAICache(r.description)) {
+          seen[key] = true;
+          uniqueDescs.push(r.description);
+        }
+      });
 
-      // Process in batches
-      const batchSize = 10;
-      for (let i = 0; i < uncategorized.length; i += batchSize) {
-        const batch = uncategorized.slice(i, i + batchSize);
-        const results = await aiCategorizeBatch(batch.map(r => ({ description: r.description })));
-        console.log('Batch results:', results);
-        if (results) {
-          results.forEach(r => {
-            const txn = batch[r.index - 1];
-            if (txn && r.category && r.category !== 'Other') {
-              txn.category = r.category;
-              txn.aiSuggested = true;
-              categoryMap[r.category] = r.category;
-              console.log('Categorized:', txn.description, '->', r.category);
-            }
-          });
+      if (uniqueDescs.length > 0) {
+        showImportScreen('preview');
+        document.getElementById('previewList').innerHTML =
+          '<div class="ai-loading">' +
+          '<div class="ai-spinner"></div>' +
+          '<div class="ai-loading-text">AI is categorizing ' + uniqueDescs.length + ' unique merchant' + (uniqueDescs.length > 1 ? 's' : '') + '...</div>' +
+          '</div>';
+
+        // Process unique descriptions in batches of 25
+        var batchSize = 25;
+        for (var i = 0; i < uniqueDescs.length; i += batchSize) {
+          var batch = uniqueDescs.slice(i, i + batchSize);
+          var results = await aiCategorizeBatch(batch.map(function (d) { return { description: d }; }));
+          if (results) {
+            results.forEach(function (r) {
+              var desc = batch[r.index - 1];
+              if (desc && r.category) {
+                updateAICache(desc, r.category, r.title || null);
+              }
+            });
+          }
         }
       }
+
+      // Apply cached results to all uncategorized rows
+      uncategorized.forEach(function (r) {
+        var cached = lookupAICache(r.description);
+        if (cached && cached.category && cached.category !== 'Other') {
+          r.category = cached.category;
+          r.aiSuggested = true;
+          categoryMap[cached.category] = cached.category;
+        }
+      });
     }
 
     showImportScreen("preview");

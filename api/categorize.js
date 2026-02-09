@@ -13,8 +13,8 @@ module.exports = async function handler(req, res) {
   if (!Array.isArray(categories) || !Array.isArray(transactions)) {
     return res.status(400).json({ error: 'Invalid request body' });
   }
-  if (transactions.length === 0 || transactions.length > 10) {
-    return res.status(400).json({ error: 'Batch size must be 1-10' });
+  if (transactions.length === 0 || transactions.length > 25) {
+    return res.status(400).json({ error: 'Batch size must be 1-25' });
   }
 
   var prompt = 'You are a financial transaction categorizer. ' +
@@ -31,7 +31,7 @@ module.exports = async function handler(req, res) {
   try {
     var message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         { role: 'user', content: prompt }
       ]
