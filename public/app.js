@@ -40,7 +40,16 @@ const SIMPLE_GROUPS = {
 };
 
 // ─── Persistence ─────────────────────────────────────────────────
+var CACHE_VERSION = 2; // bump this to force AI cache + categories reset
 function load() {
+  // Auto-clear stale AI cache and categories when version changes
+  var storedVersion = parseInt(localStorage.getItem('et_cache_version') || '0');
+  if (storedVersion < CACHE_VERSION) {
+    localStorage.removeItem('et_ai_cache');
+    localStorage.removeItem('et_categories');
+    localStorage.removeItem('et_learned_rules');
+    localStorage.setItem('et_cache_version', String(CACHE_VERSION));
+  }
   try {
     categories = JSON.parse(localStorage.getItem("et_categories")) || [...DEFAULTS];
     expenses   = JSON.parse(localStorage.getItem("et_expenses"))   || [];
