@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- App Container -->
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <!-- Month Selector -->
+    <div class="month-selector">
+      <h2 id="monthLabel">February 2026</h2>
+      <div class="month-nav">
+        <button id="prevBtn" aria-label="Previous month">&#8249;</button>
+        <button id="nextBtn" aria-label="Next month">&#8250;</button>
+      </div>
+    </div>
+
+    <!-- 1. Financial State: "Where am I right now?" -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-question">Where am I right now?</span>
+      </div>
+      <div class="summary-card" id="summaryCard"></div>
+    </div>
+
+    <!-- 2. Change Over Time: "What changed?" -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-question">What changed?</span>
+      </div>
+      <div class="insights-card" id="insightsCard">
+        <div id="insightsList"></div>
+      </div>
+    </div>
+
+    <!-- 3. Drivers: "What drove my spending?" -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-question">What drove my spending?</span>
+      </div>
+      <div class="drivers-card">
+        <div class="chart-card">
+          <h3 id="pieTitle">Where your money went</h3>
+          <div class="pie-container">
+            <svg id="pieChart" viewBox="0 0 200 200"></svg>
+            <div class="pie-legend" id="pieLegend"></div>
+          </div>
+        </div>
+        <div class="budgets-card">
+          <h3>Top Categories</h3>
+          <div id="budgetsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Actions: "What should I do next?" -->
+    <div class="sidebar-section" id="actionsSection" style="display:none;">
+      <div class="section-header">
+        <span class="section-question">What should I do next?</span>
+      </div>
+      <div class="action-card" id="actionCard"></div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <div class="main-header">
+      <h1>Transactions</h1>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-primary" id="fabBtn">+ Add Transaction</button>
+        <button class="btn-primary" id="importBtn" style="background:var(--bg-white);color:var(--text-secondary);border:1px solid var(--border);">Import CSV</button>
+        <button class="btn-primary" id="settingsBtn" style="background:var(--bg-white);color:var(--text-secondary);border:1px solid var(--border);padding:10px;" title="Learned Patterns">&#9881;</button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Search transactions...">
+      <button class="search-clear" id="searchClear">&times;</button>
+    </div>
+
+    <!-- Filter Row with Manage Categories -->
+    <div class="filter-row">
+      <div id="filterBar"></div>
+      <button class="manage-btn" id="manageBtn">Manage Categories</button>
+    </div>
+
+    <!-- Transactions Card -->
+    <div class="txn-card">
+      <div id="expenseList"></div>
+    </div>
+  </main>
+
+</div>
+
+<!-- ─── Add / Edit Expense Modal ─── -->
+<div class="overlay" id="expenseOverlay">
+  <div class="modal" id="expenseModal">
+    <h3 id="modalTitle">Add Expense</h3>
+
+    <div class="field">
+      <label>Amount</label>
+      <div class="amount-wrap">
+        <span class="dollar">$</span>
+        <input type="number" id="inAmount" placeholder="0.00" step="0.01" min="0" autocomplete="off">
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:14px;font-size:14px;color:#374151;">
+      <input type="checkbox" id="inIsIncome" style="accent-color:#10b981;width:16px;height:16px;"> Mark as income
+    </label>
+
+    <div class="field">
+      <label>Category</label>
+      <div class="select-wrap">
+        <select id="inCategory"></select>
+      </div>
+      <button class="add-cat-link" id="addCatShortcut">+ Add new category</button>
+    </div>
+
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="inDate">
+    </div>
+
+    <div class="field">
+      <label>Note <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input type="text" id="inNote" placeholder="e.g. DoorDash order">
+    </div>
+
+    <input type="hidden" id="editId">
+    <div class="modal-btns">
+      <button class="btn btn-primary" id="saveBtn">Add Expense</button>
+      <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Manage Categories Modal ─── -->
+<div class="overlay" id="catOverlay">
+  <div class="modal">
+    <h3>Manage Categories</h3>
+    <div class="chips" id="chips"></div>
+    <hr class="divider">
+
+    <div class="field">
+      <label>Category Name</label>
+      <input type="text" id="inCatName" placeholder="e.g. Healthcare">
+    </div>
+    <div class="field">
+      <label>Icon</label>
+      <div class="select-wrap">
+        <select id="inCatIcon">
+          <option value="🍔">🍔 Food</option>
+          <option value="🛍️">🛍️ Shopping</option>
+          <option value="📺">📺 Entertainment</option>
+          <option value="🚗">🚗 Transport</option>
+          <option value="🏥">🏥 Healthcare</option>
+          <option value="🏠">🏠 Housing</option>
+          <option value="💡">💡 Utilities</option>
+          <option value="📱">📱 Phone / Tech</option>
+          <option value="✈️">✈️ Travel</option>
+          <option value="🎮">🎮 Games</option>
+          <option value="📚">📚 Education</option>
+          <option value="💪">💪 Fitness</option>
+          <option value="🐾">🐾 Pets</option>
+          <option value="🎁">🎁 Gifts</option>
+          <option value="💰">💰 Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="colors" id="colorPicker"></div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn btn-primary" id="addCatBtn">Add Category</button>
+      <button class="btn btn-secondary" id="doneCatBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Import CSV Modal ─── -->
+<div class="overlay" id="importOverlay">
+  <div class="modal import-modal">
+    <!-- Upload Screen -->
+    <div id="importScreenUpload">
+      <h3>Import from Chase</h3>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="csvFileInput" accept=".csv">
+        <div class="dz-icon">📂</div>
+        <p><strong>Drag &amp; drop</strong> your Chase CSV here</p>
+        <p class="dz-sub">or click anywhere to browse</p>
+      </div>
+      <p class="import-hint">
+        To export: Chase app or website → your account → <strong>Statements &amp; Documents</strong> → Download CSV
+      </p>
+      <div class="modal-btns" style="margin-top:18px">
+        <button class="btn btn-secondary" id="importCancelUpload">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Preview Screen -->
+    <div id="importScreenPreview" style="display:none">
+      <h3>Review &amp; Import</h3>
+      <div id="mapSection"></div>
+      <hr class="divider">
+      <div class="preview-controls">
+        <label><input type="checkbox" id="selectAllCheck" checked> Select all</label>
+        <span class="sel-count" id="selCount"></span>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:12px;color:#ef4444;font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="clearBeforeImport"> Clear all existing expenses before importing
+      </label>
+      <div class="preview-scroll" id="previewList"></div>
+      <div class="modal-btns">
+        <button class="btn btn-primary" id="importConfirmBtn">Import</button>
+        <button class="btn btn-secondary" id="importBackBtn">Back</button>
+      </div>
+    </div>
+
+    <!-- Success Screen -->
+    <div id="importScreenSuccess" style="display:none">
+      <div class="import-success">
+        <div class="si-icon">✅</div>
+        <div class="si-count" id="successCount">0</div>
+        <div class="si-msg" id="successMsg">expenses imported successfully.</div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-primary" id="importDoneBtn">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Settings Modal ─── -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal">
+    <h3>Settings</h3>
+
+    <!-- Learned Patterns Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Learned Patterns</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+        When you change a transaction's category, the app learns to automatically categorize similar transactions.
+      </p>
+      <div id="learnedRulesList" class="learned-rules-list"></div>
+      <button class="btn btn-secondary" id="clearRulesBtn" style="color:#ef4444;margin-top:10px;width:100%;">Clear Learned Patterns</button>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Danger Zone -->
+    <div class="settings-section">
+      <div class="settings-section-title" style="color:#ef4444;">Danger Zone</div>
+      <button class="btn btn-secondary" id="clearTransactionsBtn" style="color:#ef4444;border-color:#ef4444;width:100%;">Clear All Transactions</button>
+      <button class="btn btn-secondary" id="clearAICacheBtn" style="color:#f59e0b;border-color:#f59e0b;width:100%;margin-top:8px;">Clear AI Cache</button>
+    </div>
+
+    <div class="modal-btns" style="margin-top:20px;">
+      <button class="btn btn-primary" id="closeSettingsBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
