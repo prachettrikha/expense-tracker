@@ -1157,7 +1157,12 @@ function guessCategory(desc) {
       d.includes("chipotle") || d.includes("mcdonald") || d.includes("chick-fil-a") ||
       d.includes("chick fil a") || d.includes("taco bell") || d.includes("wendy") ||
       d.includes("burger king") || d.includes("panera") || d.includes("pizza") ||
-      d.includes("subway") || d.includes("popeye") || d.includes("restaurant"))
+      d.includes("subway") || d.includes("popeye") || d.includes("restaurant") ||
+      d.includes("cafe") || d.includes("coffee") || d.includes("bakery") ||
+      d.includes("grill") || d.includes("sushi") || d.includes("thai") ||
+      d.includes("chinese") || d.includes("indian") || d.includes("mexican") ||
+      d.includes("diner") || d.includes("bistro") || d.includes("eatery") ||
+      d.includes("kitchen") || d.includes("swad") || d.includes("runes"))
     return "Food & Dining";
   // Subscriptions — amazon prime before amazon so it doesn't fall to Shopping
   if (d.includes("netflix") || d.includes("spotify") || d.includes("hulu") ||
@@ -1175,7 +1180,9 @@ function guessCategory(desc) {
       d.includes("transit") || d.includes("toll") ||
       d.includes("united.com") || d.includes("united air") || d.includes("american air") ||
       d.includes("delta air") || d.includes("southwest") || d.includes("jetblue") ||
-      d.includes("alaska air"))
+      d.includes("alaska air") || d.includes("hilton") || d.includes("marriott") ||
+      d.includes("hyatt") || d.includes("doubletree") || d.includes("hotel") ||
+      d.includes("motel") || d.includes("airbnb") || d.includes("vrbo"))
     return "Transportation";
   // Shopping & Groceries
   if (d.includes("amazon") || d.includes("walmart") || d.includes("target") ||
@@ -1184,7 +1191,11 @@ function guessCategory(desc) {
       d.includes("kroger") || d.includes("whole foods") || d.includes("grocery") ||
       d.includes("safeway") || d.includes("publix") || d.includes("trader joe") ||
       d.includes("aldi") || d.includes("wegmans") || d.includes("h-e-b") ||
-      d.includes("instacart"))
+      d.includes("instacart") || d.includes("bookstore") || d.includes("book store") ||
+      d.includes("huntley") || d.includes("barnes") || d.includes("cvs") ||
+      d.includes("walgreens") || d.includes("rite aid") || d.includes("pharmacy") ||
+      d.includes("dollar tree") || d.includes("dollar general") || d.includes("marshalls") ||
+      d.includes("tj maxx") || d.includes("ross ") || d.includes("nordstrom"))
     return "Shopping";
   return null; // unknown — will fall back to "Other"
 }
@@ -1347,7 +1358,9 @@ async function handleFile(file) {
       if (!date) continue;
 
       const desc = col.desc !== -1 ? (c[col.desc] || 'Unknown').trim() : 'Unknown';
-      const cat  = col.cat !== -1 ? (c[col.cat] || 'Other').trim() : smartCategorize(desc);
+      // Always try description-based categorization first — it's more accurate
+      // than whatever label the bank CSV gives (e.g. Chase labels Zelle as "Personal")
+      const cat  = smartCategorize(desc);
       let amount, isPayment;
 
       if (isChecking) {
@@ -1393,23 +1406,10 @@ async function handleFile(file) {
 
     parsedRows = rows;
 
-    // Build category map — keep categories already guessed from descriptions as-is
+    // Build category map — all categories map to themselves
     categoryMap = {};
-    [...new Set(rows.map(r => r.category))].forEach(cat => {
-      categoryMap[cat] = categories.some(c => c.name === cat)
-        ? cat
-        : CHASE_MAP[cat.toLowerCase()] || "Other";
-    });
-
-    // Run local pattern matching on anything still labeled "Other"
-    rows.forEach(function (r) {
-      if (r.category === 'Other') {
-        var guess = smartCategorize(r.description);
-        if (guess && guess !== 'Other') {
-          r.category = guess;
-          categoryMap[guess] = guess;
-        }
-      }
+    [...new Set(rows.map(r => r.category))].forEach(function (cat) {
+      categoryMap[cat] = cat;
     });
 
     // Auto-create categories from pattern matching that don't exist yet
