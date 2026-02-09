@@ -1139,65 +1139,12 @@ const CHASE_MAP = {
   "zelle":"Zelle to Friends",
 };
 
-// Guess category from the transaction description when no Category column exists
+// Only catch transactions we're 100% sure about — everything else goes to AI
 function guessCategory(desc) {
   const d = desc.toLowerCase();
-  // Zelle — first, very specific
-  if (d.includes("zelle"))                                            return "Zelle to Friends";
-  // Transfers / Allowance
-  if (d.includes("transfer"))                                         return "Allowance";
-  // Insurance
-  if (d.includes("geico") || d.includes("allstate") || d.includes("state farm") ||
-      d.includes("progressive") || d.includes("nationwide") || d.includes("farmers") ||
-      d.includes("liberty mutual") || d.includes("travelers") || d.includes("insurance"))
-    return "Insurance";
-  // Food & Dining — uber eat* before uber so ride shares don't get caught here
-  if (d.includes("doordash") || d.includes("uber eat") || d.includes("ubereats") ||
-      d.includes("grubhub") || d.includes("starbucks") || d.includes("dunkin") ||
-      d.includes("chipotle") || d.includes("mcdonald") || d.includes("chick-fil-a") ||
-      d.includes("chick fil a") || d.includes("taco bell") || d.includes("wendy") ||
-      d.includes("burger king") || d.includes("panera") || d.includes("pizza") ||
-      d.includes("subway") || d.includes("popeye") || d.includes("restaurant") ||
-      d.includes("cafe") || d.includes("coffee") || d.includes("bakery") ||
-      d.includes("grill") || d.includes("sushi") || d.includes("thai") ||
-      d.includes("chinese") || d.includes("indian") || d.includes("mexican") ||
-      d.includes("diner") || d.includes("bistro") || d.includes("eatery") ||
-      d.includes("kitchen") || d.includes("swad") || d.includes("runes"))
-    return "Food & Dining";
-  // Subscriptions — amazon prime before amazon so it doesn't fall to Shopping
-  if (d.includes("netflix") || d.includes("spotify") || d.includes("hulu") ||
-      d.includes("youtube") || d.includes("disney") || d.includes("apple tv") ||
-      d.includes("amazon prime") || d.includes("subscription") || d.includes("membership"))
-    return "Subscriptions";
-  // Technology
-  if (d.includes("plaud") || d.includes("adobe") || d.includes("microsoft") ||
-      d.includes("apple inc") || d.includes("google store") || d.includes("dell "))
-    return "Technology";
-  // Transportation — uber/lyft safe here because uber eats already returned above
-  if (d.includes("uber") || d.includes("lyft") || d.includes("shell") ||
-      d.includes("exxon") || d.includes("chevron") || d.includes("mobil") ||
-      d.includes("bp ") || d.includes("gas station") || d.includes("parking") ||
-      d.includes("transit") || d.includes("toll") ||
-      d.includes("united.com") || d.includes("united air") || d.includes("american air") ||
-      d.includes("delta air") || d.includes("southwest") || d.includes("jetblue") ||
-      d.includes("alaska air") || d.includes("hilton") || d.includes("marriott") ||
-      d.includes("hyatt") || d.includes("doubletree") || d.includes("hotel") ||
-      d.includes("motel") || d.includes("airbnb") || d.includes("vrbo"))
-    return "Transportation";
-  // Shopping & Groceries
-  if (d.includes("amazon") || d.includes("walmart") || d.includes("target") ||
-      d.includes("ebay") || d.includes("etsy") || d.includes("costco") ||
-      d.includes("best buy") || d.includes("home depot") || d.includes("lowes") ||
-      d.includes("kroger") || d.includes("whole foods") || d.includes("grocery") ||
-      d.includes("safeway") || d.includes("publix") || d.includes("trader joe") ||
-      d.includes("aldi") || d.includes("wegmans") || d.includes("h-e-b") ||
-      d.includes("instacart") || d.includes("bookstore") || d.includes("book store") ||
-      d.includes("huntley") || d.includes("barnes") || d.includes("cvs") ||
-      d.includes("walgreens") || d.includes("rite aid") || d.includes("pharmacy") ||
-      d.includes("dollar tree") || d.includes("dollar general") || d.includes("marshalls") ||
-      d.includes("tj maxx") || d.includes("ross ") || d.includes("nordstrom"))
-    return "Shopping";
-  return null; // unknown — will fall back to "Other"
+  if (d.includes("zelle"))    return "Zelle to Friends";
+  if (d.includes("transfer")) return "Allowance";
+  return null; // let AI handle everything else
 }
 
 function openImportModal() {
@@ -1498,8 +1445,13 @@ async function handleFile(file) {
           r.category = cached.category;
           r.aiSuggested = true;
           categoryMap[cached.category] = cached.category;
+          // Auto-create category if AI returned one we don't have yet
+          if (!categories.some(function (c) { return c.name === cached.category; })) {
+            categories.push({ name: cached.category, color: COLORS[categories.length % COLORS.length], icon: '📦' });
+          }
         }
       });
+      persist();
     }
 
     showImportScreen("preview");
