@@ -1132,6 +1132,20 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 13px;
   color: var(--text-secondary);
 }
+.ai-progress-bar {
+  width: 200px;
+  height: 6px;
+  background: var(--bg-gray);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.ai-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
 
 /* AI Badge */
 .ai-badge {

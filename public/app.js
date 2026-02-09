@@ -1431,26 +1431,51 @@ async function handleFile(file) {
 
       if (uniqueDescs.length > 0) {
         showImportScreen('preview');
-        document.getElementById('previewList').innerHTML =
-          '<div class="ai-loading">' +
-          '<div class="ai-spinner"></div>' +
-          '<div class="ai-loading-text">AI is categorizing ' + uniqueDescs.length + ' unique merchant' + (uniqueDescs.length > 1 ? 's' : '') + '...</div>' +
-          '</div>';
+        var importBtn = document.getElementById('importConfirmBtn');
+        var backBtn = document.getElementById('importBackBtn');
+        importBtn.disabled = true;
+        importBtn.textContent = 'Please wait...';
+        backBtn.disabled = true;
 
-        // Process unique descriptions in batches of 25
         var batchSize = 25;
+        var totalBatches = Math.ceil(uniqueDescs.length / batchSize);
+
+        // Show progress
+        function updateProgress(current) {
+          var pct = Math.round((current / totalBatches) * 100);
+          document.getElementById('previewList').innerHTML =
+            '<div class="ai-loading">' +
+            '<div class="ai-spinner"></div>' +
+            '<div class="ai-loading-text">Categorizing ' + uniqueDescs.length + ' merchants (batch ' + current + ' of ' + totalBatches + ')</div>' +
+            '<div class="ai-progress-bar"><div class="ai-progress-fill" style="width:' + pct + '%"></div></div>' +
+            '</div>';
+        }
+
         for (var i = 0; i < uniqueDescs.length; i += batchSize) {
+          var batchNum = Math.floor(i / batchSize) + 1;
+          updateProgress(batchNum);
           var batch = uniqueDescs.slice(i, i + batchSize);
-          var results = await aiCategorizeBatch(batch.map(function (d) { return { description: d }; }));
-          if (results) {
-            results.forEach(function (r) {
+          try {
+            var categoryNames = categories.map(function (c) { return c.name; });
+            var descriptions = batch;
+            var result = await callCategorizeAPI(categoryNames, descriptions);
+            var resultArray = Array.isArray(result) ? result : [];
+            resultArray.forEach(function (r) {
               var desc = batch[r.index - 1];
               if (desc && r.category) {
-                updateAICache(desc, r.category, r.title || null);
+                // Match category name (case-insensitive)
+                var matched = categoryNames.find(function (c) {
+                  return c.toLowerCase() === (r.category || '').toLowerCase();
+                }) || r.category;
+                updateAICache(desc, matched, r.title || null);
               }
             });
+          } catch (err) {
+            console.warn('Batch ' + batchNum + ' failed, skipping:', err.message);
           }
         }
+
+        backBtn.disabled = false;
       }
 
       // Apply cached results to all uncategorized rows
