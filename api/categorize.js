@@ -19,14 +19,14 @@ module.exports = async function handler(req, res) {
 
   var prompt = 'You are a financial transaction categorizer. ' +
     'For each bank transaction description, provide:\n' +
-    '1. The best category from the list\n' +
+    '1. The best category — use an existing one if it fits, or create a new descriptive category name (e.g., "Travel & Hotels", "Fees & Charges", "Healthcare")\n' +
     '2. A clean, human-readable title (e.g., "DOORDASH*DASHPASS 800-555" becomes "DoorDash DashPass")\n\n' +
-    'Available categories: ' + categories.join(', ') + '\n\n' +
+    'Existing categories: ' + categories.join(', ') + '\n\n' +
     'Transactions:\n' +
     transactions.map(function (t, i) { return (i + 1) + '. ' + t; }).join('\n') + '\n\n' +
     'Respond with ONLY a JSON array, no markdown formatting:\n' +
     '[{"index": 1, "category": "Food & Dining", "title": "DoorDash"}, ...]\n' +
-    'Use ONLY categories from the list. If unsure, use "Other".';
+    'Prefer existing categories when they fit. Create new ones when nothing fits well. NEVER use "Other" — always pick or create a specific category.';
 
   try {
     var message = await client.messages.create({

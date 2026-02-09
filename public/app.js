@@ -143,10 +143,23 @@ function smartCategorize(description) {
   const cached = lookupAICache(description);
   if (cached && cached.category) return cached.category;
 
-  // 3. Try pattern-based guessing (guessCategory defined below with imports)
+  // 3. Try pattern-based guessing — auto-create category if needed
   if (typeof guessCategory === 'function') {
     const guess = guessCategory(description);
-    if (guess && categories.some(c => c.name === guess)) return guess;
+    if (guess) {
+      if (!categories.some(c => c.name === guess)) {
+        var catDefaults = {
+          'Zelle to Friends': { color: '#14b8a6', icon: '💸' },
+          'Allowance':        { color: '#f59e0b', icon: '💵' },
+          'Insurance':        { color: '#ef4444', icon: '🛡️' },
+          'Technology':       { color: '#6366f1', icon: '📱' }
+        };
+        var def = catDefaults[guess] || { color: COLORS[categories.length % COLORS.length], icon: '📦' };
+        categories.push({ name: guess, color: def.color, icon: def.icon });
+        persist();
+      }
+      return guess;
+    }
   }
 
   // 4. Default to Other
